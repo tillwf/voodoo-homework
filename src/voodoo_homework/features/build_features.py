@@ -9,18 +9,16 @@ from voodoo_homework.config import load_config
 from voodoo_homework.utils import load_data
 from voodoo_homework.features.base_features import BaseFeatures
 from voodoo_homework.features.extra_features import ExtraFeatures
-from voodoo_homework.features.post_popularity import PostPopularity
-from voodoo_homework.features.user_post_popularity import UserPostPopularity
+from voodoo_homework.features.time_series_features import TimeSeriesFeatures
 
 CONF = load_config()
-DATA_PATH = CONF["path"]["input_data_path"]
+DATA_PATH = CONF["path"]["output_data_root"]
 OUTPUT_ROOT = CONF["path"]["output_data_root"]
 
 FEATURE_DICT = {
     "base_features": BaseFeatures,
     "extra_features": ExtraFeatures,
-    "post_popularity": PostPopularity,
-    "user_post_popularity": UserPostPopularity
+    "time_series_features": TimeSeriesFeatures
 }
 
 
@@ -49,7 +47,7 @@ def build():
 def build_features(data_path, output_root):
     logging.info("Loading Data")
 
-    df = load_data()
+    df = pd.read_parquet(DATA_PATH)
 
     for feature in FEATURE_DICT.values():
         feature.extract_feature(df, save=True)

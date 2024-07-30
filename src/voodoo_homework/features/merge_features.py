@@ -8,8 +8,7 @@ import pandas as pd
 from voodoo_homework.config import load_config
 from voodoo_homework.features.base_features import BaseFeatures
 from voodoo_homework.features.extra_features import ExtraFeatures
-from voodoo_homework.features.post_popularity import PostPopularity
-from voodoo_homework.features.user_post_popularity import UserPostPopularity
+from voodoo_homework.features.time_series_features import TimeSeriesFeatures
 
 CONF = load_config()
 DATA_PATH = CONF["path"]["input_data_path"]
@@ -19,12 +18,12 @@ INTERIM_ROOT = CONF["path"]["interim_data_root"]
 FEATURE_DICT = {
     "base_features": BaseFeatures,
     "extra_features": ExtraFeatures,
-    "post_popularity": PostPopularity,
-    "user_post_popularity": UserPostPopularity
+    "time_series_features": TimeSeriesFeatures
 }
 
 FEATURE_DEFINITIONS = CONF["feature_definitions"]
 FEATURES = CONF["features"]
+
 
 @click.group()
 def merge():

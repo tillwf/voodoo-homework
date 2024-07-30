@@ -15,8 +15,7 @@ from voodoo_homework.utils import load_features
 
 from voodoo_homework.features.base_features import BaseFeatures
 from voodoo_homework.features.extra_features import ExtraFeatures
-from voodoo_homework.features.post_popularity import PostPopularity
-from voodoo_homework.features.user_post_popularity import UserPostPopularity
+from voodoo_homework.features.time_series_features import TimeSeriesFeatures
 
 CONF = load_config()
 DATA_PATH = CONF["path"]["input_data_path"]
@@ -28,8 +27,7 @@ OUTPUT_ROOT = CONF["path"]["output_data_root"]
 FEATURE_DICT = {
     "base_features": BaseFeatures,
     "extra_features": ExtraFeatures,
-    "post_popularity": PostPopularity,
-    "user_post_popularity": UserPostPopularity
+    "time_series_features": TimeSeriesFeatures
 }
 
 FEATURE_DEFINITIONS = CONF["feature_definitions"]
@@ -81,8 +79,8 @@ def train_model(models_root, output_root, logs_root, features):
     logging.info("Training Model")
 
     X_train, X_validation, _ = load_datasets()
-    y_train = X_train.pop("has_been_opened").astype(int)
-    y_validation = X_validation.pop("has_been_opened").astype(int)
+    y_train = X_train.pop("d120_rev").astype(int)
+    y_validation = X_validation.pop("d120_rev").astype(int)
 
     # Load all the features
     data = load_features()
@@ -105,14 +103,14 @@ def train_model(models_root, output_root, logs_root, features):
     X_train = pd.merge(
         X_train,
         data[cols],
-        on=["trackable_id", "user_id", "tracker_created_at"]
+        on=["user_id", "cohort"]
     ).replace({False: 0, True: 1})\
      .select_dtypes(['number']).fillna(0)
    
     X_validation = pd.merge(
         X_validation,
         data[cols],
-        on=["trackable_id", "user_id", "tracker_created_at"]
+        on=["user_id", "cohort"]
     ).replace({False: 0, True: 1})\
      .select_dtypes(['number']).fillna(0)
 
@@ -131,8 +129,8 @@ def train_model(models_root, output_root, logs_root, features):
         )
     ])
     linear_model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-        loss="binary_crossentropy",
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.1),
+        loss="mean_absolute_error",
     )
 
     # Add callbacks to be able to restart if a process fail, to

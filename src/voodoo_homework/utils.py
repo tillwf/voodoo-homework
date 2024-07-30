@@ -9,15 +9,10 @@ OUPUT_ROOT = CONF["path"]["output_data_root"]
 
 
 def load_data():
-    return pd.read_json(
-        path_or_buf=DATA_PATH,
-        lines=True,
-        compression="gzip"
-    ).drop_duplicates(subset=[
-        "trackable_id",
-        "user_id",
-        "tracker_created_at"
-    ])
+    df = pd.read_parquet(
+        path=DATA_PATH
+    )
+    return df
 
 
 def load_features():

@@ -9,8 +9,7 @@ import pandas as pd
 from tensorflow.keras.models import load_model
 
 from voodoo_homework.features import USER_FEATURES
-from voodoo_homework.features import POST_FEATURES
-from voodoo_homework.features import USER_POST_FEATURES
+from voodoo_homework.features import TIME_SERIES_FEATURES
 
 from voodoo_homework.config import load_config
 from voodoo_homework.utils import load_data
@@ -19,8 +18,7 @@ from voodoo_homework.utils import load_features
 
 from voodoo_homework.features.base_features import BaseFeatures
 from voodoo_homework.features.extra_features import ExtraFeatures
-from voodoo_homework.features.post_popularity import PostPopularity
-from voodoo_homework.features.user_post_popularity import UserPostPopularity
+from voodoo_homework.features.time_series_features import TimeSeriesFeatures
 
 CONF = load_config()
 DATA_PATH = CONF["path"]["input_data_path"]
@@ -32,8 +30,7 @@ OUTPUT_ROOT = CONF["path"]["output_data_root"]
 FEATURE_DICT = {
     "base_features": BaseFeatures,
     "extra_features": ExtraFeatures,
-    "post_popularity": PostPopularity,
-    "user_post_popularity": UserPostPopularity
+    "time_series_features": TimeSeriesFeatures
 }
 
 FEATURE_DEFINITIONS = CONF["feature_definitions"]
@@ -125,7 +122,7 @@ def make_predictions(testset_path, models_root, output_root, features, evaluate=
     # Merge the "user/post based" features
     X_test = pd.merge_asof(
         X_test.sort_values(by="tracker_created_at"),
-        data[["user_id", "trackable_id", "tracker_created_at"] + USER_POST_FEATURES].sort_values(by="tracker_created_at"),
+        data[["user_id", "trackable_id", "tracker_created_at"] + TIME_SERIES_FEATURES].sort_values(by="tracker_created_at"),
         on="tracker_created_at",
         by=["user_id", "trackable_id"],
         direction="backward"

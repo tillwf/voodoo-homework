@@ -13,9 +13,22 @@ dataset:
   test_start_date: "2023-12-01"
   test_end_date: "2023-12-01"
 
+# How many point in time to use
+# ex: "0" or "0,3" or "0,7,30,90"
+historical_data_points: "0"
+
 features:
+  "base_features": ["user_id", "cohort"]
+  "extra_features": ["user_id", "cohort"]
+  "time_series_features": ["user_id"]
 
 feature_definitions:
+  base_features:
+    - "base_features"
+  extra_features:
+    - "extra_features"
+  time_series_features:
+    - "iap_count"
 
 model:
   name: "Linear"

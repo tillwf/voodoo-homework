@@ -101,37 +101,33 @@ def make_dataset(
         test_start_date,
         test_end_date):
     logging.info("Making Dataset")
-    logging.info(data_path)
-    logging.info(output_root)
+    logging.info(f"Loading from {data_path}")
+    logging.info(f"Outputting to {output_root}")
 
     logging.info("Loading raw data")
     df = load_data()
 
-    logging.info("Saving Files")
+    logging.info("Adding `cohort` column")
+    df["cohort"] = df.apply(
+        lambda x: hash((
+            x["install_date"],
+            x["country"],
+            x["ad_network_id"],
+            x["campaign_id"]
+        )),
+        axis=1
+    )
 
-    col_to_keep = ["trackable_id", "user_id", "tracker_created_at", "has_been_opened"]
+    logging.info("Saving Files")
 
     # TRAINSET
     logging.info("\tTrainset")
     os.makedirs(output_root, exist_ok=True)
     train_path = os.path.join(output_root, "train.parquet")
     trainset = df[(
-        (df["tracker_created_at"] >= TRAIN_START_DATE) &
-        (df["tracker_created_at"] <= TRAIN_END_DATE)
-    )][col_to_keep]
-
-    # Filtering
-    # We remove users with few signals which are moreover only negative
-    N_SIGNALS = 4
-
-    user_vc = trainset.user_id.value_counts()
-    few_signal_users = (user_vc[user_vc <= N_SIGNALS]).index
-
-    pos_signal = trainset[trainset.user_id.isin(few_signal_users)]
-
-    pos_signal.loc[:, "sum_hbo"] = pos_signal.groupby("user_id").has_been_opened.transform(sum)
-    few_signal_users_negative = pos_signal[pos_signal["sum_hbo"] == 0].user_id
-    trainset = trainset[~trainset.user_id.isin(few_signal_users_negative)]
+        (df["install_date"] >= TRAIN_START_DATE) &
+        (df["install_date"] <= TRAIN_END_DATE)
+    )]
 
     # Saving the data to parquet
     trainset.to_parquet(train_path, index=False)
@@ -141,10 +137,13 @@ def make_dataset(
     eval_path = os.path.join(output_root, "eval.parquet")
     
     # Saving the data to parquet
-    df[(
-        (df["tracker_created_at"] >= EVAL_START_DATE) &
-        (df["tracker_created_at"] <= EVAL_END_DATE)
-    )][col_to_keep].to_parquet(eval_path, index=False)
+    evaluation_set = df[(
+        (df["install_date"] >= EVAL_START_DATE) &
+        (df["install_date"] <= EVAL_END_DATE)
+    )]
+
+    # Saving the data to parquet
+    evaluation_set.to_parquet(eval_path, index=False)
 
     # TESTSET
     logging.info("\tTestset")
@@ -152,47 +151,12 @@ def make_dataset(
 
     # Keep one day before the starting date to generate the negative post
     testset = df[(
-        (df["tracker_created_at"] >= EVAL_END_DATE) &
-        (df["tracker_created_at"] <= TEST_END_DATE)
-    )]
-
-    # Keep only last day articles
-    testset["post_creation_date"] = (testset.tracker_created_at - testset.post_age_in_minutes.apply(lambda x: pd.Timedelta(minutes=x))).dt.date
-    testset["post_creation_date_plus_one"] = testset["post_creation_date"].apply(lambda x: x + pd.Timedelta(days=1))
-    testset["post_from_yesterday"] = testset.tracker_created_at.dt.date == testset.post_creation_date_plus_one
-
-    ## Keep only line with has_been_opened == 1 and post is from last day
-    ## => Divide by 8 the number of post
-    pos_testset = testset[
-        (testset.has_been_opened) &
-        (testset.post_from_yesterday)
-    ]
-
-    ## Add all other posts from the day before as negative
-    pos_and_neg = []
-    for i, row in pos_testset.iterrows():
-        current_user_id = row["user_id"]
-        current_pos_date = row["tracker_created_at"]
-        yesterdays_posts = testset[
-            testset.post_creation_date_plus_one == current_pos_date.date()
-        ].trackable_id.unique()
-
-        for post_id in yesterdays_posts:
-            pos_and_neg.append({
-                "user_id": current_user_id,
-                "tracker_created_at": current_pos_date,
-                "trackable_id": post_id,
-                "has_been_opened": 0
-            })
-
-    testset = pd.concat([pos_testset[col_to_keep], pd.DataFrame(pos_and_neg)], axis=0)
-    
-    testset = testset[(
-        testset["tracker_created_at"] >= TEST_START_DATE
+        (df["install_date"] >= TEST_START_DATE) &
+        (df["install_date"] <= TEST_END_DATE)
     )]
 
     # Saving the data to parquet
-    testset[col_to_keep].to_parquet(test_path, index=False)
+    testset.to_parquet(test_path, index=False)
     
     # Sanity Check
     train_users = pd.read_parquet(train_path)
