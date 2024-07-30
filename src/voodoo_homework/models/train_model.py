@@ -2,6 +2,7 @@ import click
 import fastparquet
 import json
 import logging
+import numpy as np
 import os
 import pandas as pd
 import tensorflow as tf
@@ -76,11 +77,18 @@ def train():
     )
 )
 def train_model(models_root, output_root, logs_root, features):
-    logging.info("Training Model")
 
+    def mean_square_error_log(y_true, y_pred):
+        y_true = tf.exp(y_true)
+        y_pred = tf.exp(y_pred)
+        return tf.keras.losses.mean_squared_error(y_true, y_pred)
+
+    logging.info("Training Model")
     X_train, X_validation, _ = load_datasets()
     y_train = X_train.pop("d120_rev").astype(int)
+    y_train_log = np.log(y_train)
     y_validation = X_validation.pop("d120_rev").astype(int)
+    y_validation_log = np.log(y_validation)
 
     # Load all the features
     data = load_features()
@@ -120,17 +128,16 @@ def train_model(models_root, output_root, logs_root, features):
     normalizer.adapt(X_train)
 
     # Simple Logistic regression
-    linear_model = tf.keras.Sequential([
+    model = tf.keras.Sequential([
         normalizer,
-        layers.Dense(
-            units=1,
-            activation='sigmoid',
-            input_dim=X_train.shape[1]
-        )
+        layers.Dense(units=64, activation='relu', input_shape=(X_train.shape[1],)),
+        layers.Dense(units=32, activation='relu'),
+        layers.Dense(units=16, activation='relu'),
+        layers.Dense(units=1)
     ])
-    linear_model.compile(
+    model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=0.1),
-        loss="mean_absolute_error",
+        loss="mean_squared_error"
     )
 
     # Add callbacks to be able to restart if a process fail, to
@@ -166,7 +173,7 @@ def train_model(models_root, output_root, logs_root, features):
     callbacks.append(early_stopping)
 
     # Launch the train and save the loss evolution in `history`
-    history = linear_model.fit(
+    history = model.fit(
         X_train,
         y_train.values,
         callbacks=callbacks,
@@ -179,5 +186,5 @@ def train_model(models_root, output_root, logs_root, features):
 
     # Save the model
     logging.info("Saving Model")
-    linear_model.load_weights(best_model_file)
-    linear_model.save(os.path.join(models_root, "final_model"))
+    model.load_weights(best_model_file)
+    model.save(os.path.join(models_root, "final_model"))

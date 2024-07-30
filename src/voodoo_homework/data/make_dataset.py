@@ -126,7 +126,8 @@ def make_dataset(
     train_path = os.path.join(output_root, "train.parquet")
     trainset = df[(
         (df["install_date"] >= TRAIN_START_DATE) &
-        (df["install_date"] <= TRAIN_END_DATE)
+        (df["install_date"] <= TRAIN_END_DATE) &
+        (~df["d120_rev"].isna())
     )]
 
     # Saving the data to parquet
@@ -139,7 +140,8 @@ def make_dataset(
     # Saving the data to parquet
     evaluation_set = df[(
         (df["install_date"] >= EVAL_START_DATE) &
-        (df["install_date"] <= EVAL_END_DATE)
+        (df["install_date"] <= EVAL_END_DATE) &
+        (~df["d120_rev"].isna())
     )]
 
     # Saving the data to parquet
