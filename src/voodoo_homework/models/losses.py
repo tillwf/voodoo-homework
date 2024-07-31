@@ -3,7 +3,7 @@ import tensorflow as tf
 EPSILON = tf.keras.backend.epsilon()
 
 
-def mean_square_error_log(y_true, y_pred):
+def mean_squared_error_log(y_true, y_pred):
     y_true = tf.maximum(tf.cast(y_true, tf.float32), EPSILON)
 
     y_true_log = tf.math.log(y_true)

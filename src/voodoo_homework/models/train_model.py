@@ -18,7 +18,7 @@ from voodoo_homework.features.base_features import BaseFeatures
 from voodoo_homework.features.extra_features import ExtraFeatures
 from voodoo_homework.features.time_series_features import TimeSeriesFeatures
 
-from voodoo_homework.models.losses import mean_square_error_log
+from voodoo_homework.models.losses import mean_squared_error_log
 from voodoo_homework.models.losses import weighted_mape_tf
 
 
@@ -117,7 +117,8 @@ def train_model(models_root, output_root, logs_root, features):
         X_train,
         data[cols],
         on=["user_id"]
-    )
+    )[:10000]
+    y_train = y_train[:10000]
 
     X_validation = pd.merge(
         X_validation,
@@ -127,56 +128,56 @@ def train_model(models_root, output_root, logs_root, features):
 
     # Define the model
     # Normalize the numerical features
+    logging.info(f"Normalize {len(numeric_cols)} numerical values")
     normalizer = tf.keras.layers.Normalization(axis=-1)
     normalizer.adapt(X_train[numeric_cols])
 
     # Encode and embed categorical features
-    logging.info("Create embeddings of categorical values")
-    embedding_layers = []
+    logging.info(f"Create embeddings for {len(categorical_cols)} categorical values")
+
+    categorical_encoders = {}
     for col in categorical_cols:
+        logging.info(f"\t- {col}")
         lookup = tf.keras.layers.StringLookup(output_mode="int")
         lookup.adapt(X_train[col])
-        vocab_size = lookup.vocabulary_size()
+        categorical_encoders[col] = lookup
 
-        embed_dim = int(np.ceil(vocab_size ** 0.25))
-        embedding_layers.append((
-            col,
-            lookup,
-            tf.keras.Sequential([
-                lookup,
-                tf.keras.layers.Embedding(
-                    input_dim=vocab_size,
-                    output_dim=embed_dim
-                )
-            ])
-        ))
+    # Define preprocessing function
+    def preprocess_inputs(X, numerical_cols, categorical_cols, normalizer, categorical_encoders):
+        # Normalize numerical features
+        X_numeric = normalizer(X[numerical_cols])
 
-    # Define a function to preprocess inputs
-    def preprocess_inputs(X):
-        X_numeric = normalizer(X[numeric_cols])
+        # Embed categorical features
+        X_categorical = [categorical_encoders[col](X[col]) for col in categorical_cols]
+
+        # Convert categorical features to embeddings
         X_categorical = [
-            embed_layer(X[col])
-            for col, lookup, embed_layer in embedding_layers
+            tf.keras.layers.Embedding(
+                input_dim=len(encoder.get_vocabulary()),
+                output_dim=2  # Arbitrary value
+            )(cat)
+            for cat, encoder in zip(X_categorical, categorical_encoders.values())
         ]
+
+        # Flatten categorical embeddings and concatenate with numerical features
         return tf.concat([X_numeric] + X_categorical, axis=-1)
 
-    import ipdb; ipdb.set_trace()
     # Apply preprocessing to the training and validation data
-    X_train_processed = preprocess_inputs(X_train)
-    X_validation_processed = preprocess_inputs(X_validation)
+    X_train_processed = preprocess_inputs(X_train, numeric_cols, categorical_cols, normalizer, categorical_encoders)
+    X_validation_processed = preprocess_inputs(X_validation, numeric_cols, categorical_cols, normalizer, categorical_encoders)
 
-    # Simple Logistic regression
     model = tf.keras.Sequential([
-        normalizer,
+        tf.keras.layers.Input(shape=(X_train_processed.shape[1],)),
         layers.Dense(units=64, activation='relu', input_shape=(X_train.shape[1],)),
         layers.Dense(units=32, activation='relu'),
         layers.Dense(units=16, activation='relu'),
         layers.Dense(units=1),
         layers.Lambda(lambda y_pred: tf.clip_by_value(y_pred, EPSILON, 1e10))
     ])
+
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-        loss=mean_square_error_log
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
+        loss=mean_squared_error_log
     )
 
     # Add callbacks to be able to restart if a process fail, to
