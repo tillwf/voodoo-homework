@@ -36,6 +36,8 @@ FEATURE_DEFINITIONS = CONF["feature_definitions"]
 EPOCH = CONF["model"]["epoch"]
 PATIENCE = CONF["model"]["early_stopping_patience"]
 
+EPSILON = tf.keras.backend.epsilon()
+
 
 @click.group()
 def train():
@@ -79,16 +81,35 @@ def train():
 def train_model(models_root, output_root, logs_root, features):
 
     def mean_square_error_log(y_true, y_pred):
-        y_true = tf.exp(y_true)
-        y_pred = tf.exp(y_pred)
-        return tf.keras.losses.mean_squared_error(y_true, y_pred)
+        y_true = tf.maximum(tf.cast(y_true, tf.float32), EPSILON)
+        #y_pred = tf.maximum(tf.cast(y_pred, tf.float32), EPSILON)
+
+        y_true_log = tf.math.log(y_true)
+        y_pred_log = tf.math.log(y_pred)
+
+        return tf.keras.losses.mean_squared_error(y_true_log, y_pred_log)
+
+    def weighted_mape_tf(y_true, y_pred):
+        tot =tf.cast(tf.reduce_sum(y_true), tf.float32)
+        tot = tf.clip_by_value(tot, clip_value_min=1, clip_value_max=10)
+        wmape = tf.realdiv(
+            tf.reduce_sum(
+                tf.abs(
+                    tf.subtract(
+                        tf.cast(y_true, tf.float32),
+                        tf.cast(y_pred, tf.float32)
+                    )
+                )
+            ),
+            tf.cast(tot, tf.float32)
+        ) * 100
+
+        return wmape
 
     logging.info("Training Model")
     X_train, X_validation, _ = load_datasets()
     y_train = X_train.pop("d120_rev").astype(int)
-    y_train_log = np.log(y_train)
     y_validation = X_validation.pop("d120_rev").astype(int)
-    y_validation_log = np.log(y_validation)
 
     # Load all the features
     data = load_features()
@@ -133,11 +154,12 @@ def train_model(models_root, output_root, logs_root, features):
         layers.Dense(units=64, activation='relu', input_shape=(X_train.shape[1],)),
         layers.Dense(units=32, activation='relu'),
         layers.Dense(units=16, activation='relu'),
-        layers.Dense(units=1)
+        layers.Dense(units=1),
+        layers.Lambda(lambda y_pred: tf.clip_by_value(y_pred, EPSILON, 1e10))
     ])
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.1),
-        loss="mean_squared_error"
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+        loss=mean_square_error_log
     )
 
     # Add callbacks to be able to restart if a process fail, to

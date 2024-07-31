@@ -95,7 +95,6 @@ class TimeSeriesFeatures(Feature):
                 )
 
             time_series_features.append(extracted_features)
-            break
 
         time_series_features = reduce(
             lambda x, y: pd.merge(x, y, on='user_id'),

@@ -29,6 +29,18 @@ feature_definitions:
     - "extra_features"
   time_series_features:
     - "iap_count"
+    - "iap_coins_rev"
+    - "iap_coins_count"
+    - "iap_ads_rev"
+    - "iap_ads_count"
+    - "ad_count"
+    - "session_count"
+    - "game_count"
+    - "current_level"
+    - "session_length"
+    - "coins_spend_sum"
+    - "booster_used_count"
+    - "rv_shown_count"
 
 model:
   name: "Linear"
