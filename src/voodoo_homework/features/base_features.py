@@ -35,8 +35,11 @@ class BaseFeatures(Feature):
 
         if save:
             os.makedirs(OUTPUT_ROOT, exist_ok=True)
-            df[IDS + USER_FEATURES].to_parquet(
-                os.path.join(OUTPUT_ROOT, f"base_features.parquet"),
+            df_cat = df[IDS + USER_FEATURES]
+            # This step is useful to identify categorical features
+            df_cat[USER_FEATURES] = df_cat[USER_FEATURES].astype(str)
+            df_cat.to_parquet(
+                os.path.join(OUTPUT_ROOT, "base_features.parquet"),
                 index=False
             )
 

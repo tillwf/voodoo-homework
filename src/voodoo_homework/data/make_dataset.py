@@ -9,7 +9,7 @@ from voodoo_homework.utils import load_data
 
 CONF = load_config()
 DATA_PATH = CONF["path"]["input_data_path"]
-OUPUT_ROOT = CONF["path"]["output_data_root"]
+OUTPUT_ROOT = CONF["path"]["output_data_root"]
 
 TRAIN_START_DATE = CONF["dataset"]["train_start_date"]
 TRAIN_END_DATE = CONF["dataset"]["train_end_date"]
@@ -38,9 +38,9 @@ def dataset():
 @click.option(
     '--output-root',
     type=str,
-    default=OUPUT_ROOT,
+    default=OUTPUT_ROOT,
     help='Path of output folder, default is {}'.format(
-        OUPUT_ROOT
+        OUTPUT_ROOT
     )
 )
 @click.option(
@@ -131,7 +131,7 @@ def make_dataset(
     )]
 
     # Saving the data to parquet
-    trainset.to_parquet(train_path, index=False)
+    trainset[["user_id", "cohort", "d120_rev"]].to_parquet(train_path, index=False)
 
     # VALIDATION SET
     logging.info("\tValidation set")
@@ -145,7 +145,7 @@ def make_dataset(
     )]
 
     # Saving the data to parquet
-    evaluation_set.to_parquet(eval_path, index=False)
+    evaluation_set[["user_id", "cohort", "d120_rev"]].to_parquet(eval_path, index=False)
 
     # TESTSET
     logging.info("\tTestset")
@@ -158,7 +158,7 @@ def make_dataset(
     )]
 
     # Saving the data to parquet
-    testset.to_parquet(test_path, index=False)
+    testset[["user_id", "cohort", "d120_rev"]].to_parquet(test_path, index=False)
     
     # Sanity Check
     train_users = pd.read_parquet(train_path)

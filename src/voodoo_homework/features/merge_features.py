@@ -57,6 +57,7 @@ def merge_features(data_path, output_root):
         for feature in features:
             logging.info(f" - {feature}")
             temp_df = pd.read_parquet(os.path.join(INTERIM_ROOT, f"{feature}.parquet"))
+
             if len(df) == 0:
                 df = temp_df
             else:

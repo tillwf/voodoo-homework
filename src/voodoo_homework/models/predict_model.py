@@ -20,6 +20,10 @@ from voodoo_homework.features.base_features import BaseFeatures
 from voodoo_homework.features.extra_features import ExtraFeatures
 from voodoo_homework.features.time_series_features import TimeSeriesFeatures
 
+from voodoo_homework.models.losses import mean_square_error_log
+from voodoo_homework.models.losses import weighted_mape_tf
+
+
 CONF = load_config()
 DATA_PATH = CONF["path"]["input_data_path"]
 MODELS_ROOT = CONF["path"]["models_root"]
@@ -81,7 +85,7 @@ def make_predictions(testset_path, models_root, output_root, features, evaluate=
 
     logging.info("Reading test data")
     _, _, X_test = load_datasets()
-    y_test = X_test.pop("has_been_opened")
+    y_test = X_test.pop("d120_rev")
 
     logging.info("Create features")
     data = load_features()
@@ -102,43 +106,19 @@ def make_predictions(testset_path, models_root, output_root, features, evaluate=
     cols = set([c for c in cols if not c.startswith("__")])
 
     # Merge the "user based" features
-    X_test = pd.merge_asof(
-        X_test.sort_values(by="tracker_created_at"),
-        data[["user_id", "tracker_created_at"] + USER_FEATURES].sort_values(by="tracker_created_at"),
-        on="tracker_created_at",
-        by="user_id",
-        direction="backward"
-    )
-
-    # Merge the "post based" features
-    X_test = pd.merge_asof(
-        X_test.sort_values(by="tracker_created_at"),
-        data[["trackable_id", "tracker_created_at"] + POST_FEATURES].sort_values(by="tracker_created_at"),
-        on="tracker_created_at",
-        by="trackable_id",
-        direction="backward"
-    )
-
-    # Merge the "user/post based" features
-    X_test = pd.merge_asof(
-        X_test.sort_values(by="tracker_created_at"),
-        data[["user_id", "trackable_id", "tracker_created_at"] + TIME_SERIES_FEATURES].sort_values(by="tracker_created_at"),
-        on="tracker_created_at",
-        by=["user_id", "trackable_id"],
-        direction="backward"
-    )
-
-    # Clean the dataset (bool to int, filter on numerical, fillna)
-    X_test = (
-        X_test[cols]
-        .set_index(["user_id", "trackable_id", "tracker_created_at"])
-        .replace({False: 0, True: 1})
-        .select_dtypes(['number'])
-        .fillna(0)
-    )
+    X_test = pd.merge(
+        X_test,
+        data[cols],
+        on=["user_id", "cohort"]
+    ).replace({False: 0, True: 1})\
+     .select_dtypes(['number']).fillna(0)
 
     logging.info("Loading model")
-    model = load_model(os.path.join(models_root, "final_model"))
+
+    model = load_model(
+        os.path.join(models_root, "final_model"),
+        custom_objects={'mean_square_error_log': mean_square_error_log}
+    )
 
     logging.info("Making predictions")
     raw_predictions = pd.DataFrame(
@@ -149,20 +129,7 @@ def make_predictions(testset_path, models_root, output_root, features, evaluate=
 
     # Add columns to compute the metrics (Mean Rank, MAP@10, etc.)
     X_test["predictions"] = raw_predictions
-    X_test["rank"] = (
-        X_test
-        .groupby(["user_id", "tracker_created_at"])['predictions']
-        .rank(ascending=False)
-    )
-    X_test["has_been_opened"] = y_test.values
-
-    # Print the mean rank
-    mean_rank = X_test.loc[X_test['has_been_opened'] == 1, ["has_been_opened", "predictions", "rank"]]["rank"].mean()
-    map_10 = 0
-    
-    logging.info(f"Mean Rank: {mean_rank}")
-    logging.info(f"MAP@10: {map_10}")
-
+    import ipdb; ipdb.set_trace()
     # Saving the predictions
     logging.info("Saving predictions")
     X_test.to_parquet(os.path.join(OUTPUT_ROOT, "raw_predictions.parquet"))

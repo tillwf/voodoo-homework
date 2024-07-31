@@ -18,6 +18,10 @@ from voodoo_homework.features.base_features import BaseFeatures
 from voodoo_homework.features.extra_features import ExtraFeatures
 from voodoo_homework.features.time_series_features import TimeSeriesFeatures
 
+from voodoo_homework.models.losses import mean_square_error_log
+from voodoo_homework.models.losses import weighted_mape_tf
+
+
 CONF = load_config()
 DATA_PATH = CONF["path"]["input_data_path"]
 MODELS_ROOT = CONF["path"]["models_root"]
@@ -80,32 +84,6 @@ def train():
 )
 def train_model(models_root, output_root, logs_root, features):
 
-    def mean_square_error_log(y_true, y_pred):
-        y_true = tf.maximum(tf.cast(y_true, tf.float32), EPSILON)
-        #y_pred = tf.maximum(tf.cast(y_pred, tf.float32), EPSILON)
-
-        y_true_log = tf.math.log(y_true)
-        y_pred_log = tf.math.log(y_pred)
-
-        return tf.keras.losses.mean_squared_error(y_true_log, y_pred_log)
-
-    def weighted_mape_tf(y_true, y_pred):
-        tot =tf.cast(tf.reduce_sum(y_true), tf.float32)
-        tot = tf.clip_by_value(tot, clip_value_min=1, clip_value_max=10)
-        wmape = tf.realdiv(
-            tf.reduce_sum(
-                tf.abs(
-                    tf.subtract(
-                        tf.cast(y_true, tf.float32),
-                        tf.cast(y_pred, tf.float32)
-                    )
-                )
-            ),
-            tf.cast(tot, tf.float32)
-        ) * 100
-
-        return wmape
-
     logging.info("Training Model")
     X_train, X_validation, _ = load_datasets()
     y_train = X_train.pop("d120_rev").astype(int)
@@ -126,27 +104,66 @@ def train_model(models_root, output_root, logs_root, features):
         path = os.path.join(INTERIM_ROOT, f"{filename}.parquet")
         cols += fastparquet.ParquetFile(path).columns
 
-    cols = set([c for c in cols if not c.startswith("__")])
+    cols = set(
+        [c for c in cols if not c.startswith("__")] +
+        ["user_id", "cohort"]
+    )
 
     # Construct the train and validation set with the features
+    numeric_cols = data[cols].select_dtypes(include=['number']).columns.difference(["user_id", "cohort"]).tolist()
+    categorical_cols = data[cols].select_dtypes(exclude=['number']).columns.difference(["user_id", "cohort"]).tolist()
+
     X_train = pd.merge(
         X_train,
         data[cols],
-        on=["user_id", "cohort"]
-    ).replace({False: 0, True: 1})\
-     .select_dtypes(['number']).fillna(0)
-   
+        on=["user_id"]
+    )
+
     X_validation = pd.merge(
         X_validation,
         data[cols],
-        on=["user_id", "cohort"]
-    ).replace({False: 0, True: 1})\
-     .select_dtypes(['number']).fillna(0)
+        on=["user_id"]
+    )
 
     # Define the model
     # Normalize the numerical features
     normalizer = tf.keras.layers.Normalization(axis=-1)
-    normalizer.adapt(X_train)
+    normalizer.adapt(X_train[numeric_cols])
+
+    # Encode and embed categorical features
+    logging.info("Create embeddings of categorical values")
+    embedding_layers = []
+    for col in categorical_cols:
+        lookup = tf.keras.layers.StringLookup(output_mode="int")
+        lookup.adapt(X_train[col])
+        vocab_size = lookup.vocabulary_size()
+
+        embed_dim = int(np.ceil(vocab_size ** 0.25))
+        embedding_layers.append((
+            col,
+            lookup,
+            tf.keras.Sequential([
+                lookup,
+                tf.keras.layers.Embedding(
+                    input_dim=vocab_size,
+                    output_dim=embed_dim
+                )
+            ])
+        ))
+
+    # Define a function to preprocess inputs
+    def preprocess_inputs(X):
+        X_numeric = normalizer(X[numeric_cols])
+        X_categorical = [
+            embed_layer(X[col])
+            for col, lookup, embed_layer in embedding_layers
+        ]
+        return tf.concat([X_numeric] + X_categorical, axis=-1)
+
+    import ipdb; ipdb.set_trace()
+    # Apply preprocessing to the training and validation data
+    X_train_processed = preprocess_inputs(X_train)
+    X_validation_processed = preprocess_inputs(X_validation)
 
     # Simple Logistic regression
     model = tf.keras.Sequential([
@@ -196,12 +213,12 @@ def train_model(models_root, output_root, logs_root, features):
 
     # Launch the train and save the loss evolution in `history`
     history = model.fit(
-        X_train,
+        X_train_processed,
         y_train.values,
         callbacks=callbacks,
         epochs=EPOCH,
         validation_data=(
-            X_validation,
+            X_validation_processed,
             y_validation.values
         )
     )
