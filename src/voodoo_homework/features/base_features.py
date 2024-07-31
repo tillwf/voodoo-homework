@@ -12,10 +12,10 @@ IDS = [
 
 USER_FEATURES = [
     "app_id",
-    "install_date",
     "platform",
     "is_optin",
-    "game_type",
+    # "install_date"  ## Cardinality too high
+    # "game_type",  ## Only one value
     "country",
     "manufacturer",
     "mobile_classification",

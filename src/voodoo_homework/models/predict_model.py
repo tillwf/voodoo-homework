@@ -23,6 +23,7 @@ from voodoo_homework.features.time_series_features import TimeSeriesFeatures
 
 from voodoo_homework.models.losses import mean_squared_error_log
 from voodoo_homework.models.losses import weighted_mape_tf
+from voodoo_homework.models.utils import dataframe_to_dict
 
 
 CONF = load_config()
@@ -127,30 +128,11 @@ def make_predictions(testset_path, models_root, output_root, features, evaluate=
         custom_objects={'mean_squared_error_log': mean_squared_error_log}
     )
 
-    preprocessing_model = model.layers[0]  # Extract the preprocessing layers
-    import ipdb; ipdb.set_trace()
-    # Separate numeric and categorical features from the preprocessing model
-    normalization_layer = None
-    embedding_layers = {}
-    string_lookup_layers = {}
-
-    for layer in model.layers:
-        if isinstance(layer, tf.keras.layers.Normalization):
-            normalization_layer = layer
-        elif isinstance(layer, tf.keras.layers.StringLookup):
-            col_name = layer.name.split("_lookup")[0]  # Assumes layer names are in the format "feature_lookup"
-            string_lookup_layers[col_name] = layer
-        elif isinstance(layer, tf.keras.layers.Embedding):
-            embedding_layers[col_name] = layer
-
-    # Apply the normalization and embeddings
-    X_numeric = normalization_layer(X_test[numeric_cols])
-    X_categorical = [embedding_layers[col](X_test[col]) for col in categorical_cols]
-    X_test_processed = tf.concat([X_numeric] + X_categorical, axis=-1)
+    X_test_dict = dataframe_to_dict(X_test, numeric_cols, categorical_cols)
 
     logging.info("Making predictions")
     raw_predictions = pd.DataFrame(
-        model.predict(X_test_processed),
+        model.predict(X_test_dict),
         index=X_test.index,
         columns=["predictions"]
     )

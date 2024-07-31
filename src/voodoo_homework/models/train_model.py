@@ -9,6 +9,10 @@ import tensorflow as tf
 
 from tensorflow import keras
 from tensorflow.keras import layers
+from tensorflow.keras.layers import Input, Dense, Concatenate, Embedding, Flatten, BatchNormalization, Lambda
+from tensorflow.keras.layers import Normalization
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers.experimental.preprocessing import Normalization, StringLookup, CategoryEncoding
 
 from voodoo_homework.config import load_config
 from voodoo_homework.utils import load_datasets
@@ -20,6 +24,7 @@ from voodoo_homework.features.time_series_features import TimeSeriesFeatures
 
 from voodoo_homework.models.losses import mean_squared_error_log
 from voodoo_homework.models.losses import weighted_mape_tf
+from voodoo_homework.models.utils import dataframe_to_dict
 
 
 CONF = load_config()
@@ -110,15 +115,15 @@ def train_model(models_root, output_root, logs_root, features):
     )
 
     # Construct the train and validation set with the features
-    numeric_cols = data[cols].select_dtypes(include=['number']).columns.difference(["user_id", "cohort"]).tolist()
-    categorical_cols = data[cols].select_dtypes(exclude=['number']).columns.difference(["user_id", "cohort"]).tolist()
+    numeric_cols = data[cols].select_dtypes(include=['number']).columns.difference(["user_id", "cohort", "game_type"]).tolist()
+    categorical_cols = data[cols].select_dtypes(exclude=['number']).columns.difference(["user_id", "cohort", "game_type"]).tolist()
 
     X_train = pd.merge(
         X_train,
         data[cols],
         on=["user_id"]
-    )[:10000]
-    y_train = y_train[:10000]
+    )
+    y_train = y_train
 
     X_validation = pd.merge(
         X_validation,
@@ -126,59 +131,58 @@ def train_model(models_root, output_root, logs_root, features):
         on=["user_id"]
     )
 
-    # Define the model
-    # Normalize the numerical features
-    logging.info(f"Normalize {len(numeric_cols)} numerical values")
-    normalizer = tf.keras.layers.Normalization(axis=-1)
-    normalizer.adapt(X_train[numeric_cols])
+    # Extract column names
+    numeric_cols = data.select_dtypes(include=['number']).columns.difference(["user_id", "cohort"]).tolist()
+    categorical_cols = data.select_dtypes(exclude=['number']).columns.difference(["user_id", "cohort"]).tolist()
 
-    # Encode and embed categorical features
-    logging.info(f"Create embeddings for {len(categorical_cols)} categorical values")
+    # Create input layers for numerical and categorical columns
+    inputs = []
+    encoded_features = []
 
-    categorical_encoders = {}
+    # Normalize numerical features
+    for col in numeric_cols:
+        logging.info(col)
+        numeric_input = Input(shape=(1,), name=col)
+        normalization_layer = Normalization()(numeric_input)
+        inputs.append(numeric_input)
+        encoded_features.append(normalization_layer)
+
+    # Encode categorical features
     for col in categorical_cols:
-        logging.info(f"\t- {col}")
-        lookup = tf.keras.layers.StringLookup(output_mode="int")
-        lookup.adapt(X_train[col])
-        categorical_encoders[col] = lookup
+        logging.info(col)
+        categorical_input = Input(shape=(1,), name=col, dtype=tf.string)
 
-    # Define preprocessing function
-    def preprocess_inputs(X, numerical_cols, categorical_cols, normalizer, categorical_encoders):
-        # Normalize numerical features
-        X_numeric = normalizer(X[numerical_cols])
+        # Create and adapt the StringLookup layer
+        lookup_layer = StringLookup(output_mode='int', vocabulary=X_train[col].unique())
+        encoded_indices = lookup_layer(categorical_input)
 
-        # Embed categorical features
-        X_categorical = [categorical_encoders[col](X[col]) for col in categorical_cols]
+        # Create the CategoryEncoding layer
+        encoding_layer = CategoryEncoding(num_tokens=X_train[col].nunique() + 1, output_mode='one_hot')
+        encoded_feature = encoding_layer(encoded_indices)
 
-        # Convert categorical features to embeddings
-        X_categorical = [
-            tf.keras.layers.Embedding(
-                input_dim=len(encoder.get_vocabulary()),
-                output_dim=2  # Arbitrary value
-            )(cat)
-            for cat, encoder in zip(X_categorical, categorical_encoders.values())
-        ]
+        inputs.append(categorical_input)
+        encoded_features.append(encoded_feature)
 
-        # Flatten categorical embeddings and concatenate with numerical features
-        return tf.concat([X_numeric] + X_categorical, axis=-1)
+    # Concatenate all features
+    all_features = Concatenate()(encoded_features)
 
-    # Apply preprocessing to the training and validation data
-    X_train_processed = preprocess_inputs(X_train, numeric_cols, categorical_cols, normalizer, categorical_encoders)
-    X_validation_processed = preprocess_inputs(X_validation, numeric_cols, categorical_cols, normalizer, categorical_encoders)
+    # Define the rest of the model
+    x = Dense(128, activation='relu')(all_features)
+    x = Dense(64, activation='relu')(x)
+    output = Dense(1)(x)
+    clipped_output = Lambda(lambda y_pred: tf.clip_by_value(y_pred, EPSILON, 1e10))(output)
 
-    model = tf.keras.Sequential([
-        tf.keras.layers.Input(shape=(X_train_processed.shape[1],)),
-        layers.Dense(units=64, activation='relu', input_shape=(X_train.shape[1],)),
-        layers.Dense(units=32, activation='relu'),
-        layers.Dense(units=16, activation='relu'),
-        layers.Dense(units=1),
-        layers.Lambda(lambda y_pred: tf.clip_by_value(y_pred, EPSILON, 1e10))
-    ])
+    # Create the model
+    model = Model(inputs=inputs, outputs=clipped_output)
 
+    # Compile the model
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
         loss=mean_squared_error_log
     )
+
+    # Model summary
+    model.summary()
 
     # Add callbacks to be able to restart if a process fail, to
     # save the best model and to create a TensorBoard
@@ -212,14 +216,18 @@ def train_model(models_root, output_root, logs_root, features):
     )
     callbacks.append(early_stopping)
 
+    # Prepare data for training (convert X_train to dictionary)
+    X_train_dict = dataframe_to_dict(X_train)
+    X_validation_dict = dataframe_to_dict(X_validation)
+
     # Launch the train and save the loss evolution in `history`
     history = model.fit(
-        X_train_processed,
+        X_train_dict,
         y_train.values,
         callbacks=callbacks,
-        epochs=EPOCH,
+        epochs=2,
         validation_data=(
-            X_validation_processed,
+            X_validation_dict,
             y_validation.values
         )
     )
