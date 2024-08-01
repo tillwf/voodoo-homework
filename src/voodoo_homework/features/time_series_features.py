@@ -1,4 +1,3 @@
-import logging
 import os
 import pandas as pd
 
@@ -15,7 +14,6 @@ OUTPUT_ROOT = CONF["path"]["interim_data_root"]
 
 IDS = [
     "user_id",
-    "cohort",
 ]
 
 ENGAGEMENT_FEATURES = [
@@ -33,12 +31,6 @@ ENGAGEMENT_FEATURES = [
     "booster_used_count",
     "rv_shown_count",
 ]
-
-REVENUE_AD = [f"d{t}_ad_rev" for t in [0]]  # , 3, 7, 14, 30, 60, 90)]
-REVENUE_IAP = [f"d{t}_iap_rev" for t in [0]]  # , 3, 7, 14, 30, 60, 90)]
-REVENUE_TOTAL = [f"d{t}_rev" for t in [0]]  # , 3, 7, 14, 30, 60, 90)]
-
-REVENUE = REVENUE_AD + REVENUE_IAP + REVENUE_TOTAL
 
 
 class TimeSeriesFeatures(Feature):
@@ -71,13 +63,10 @@ class TimeSeriesFeatures(Feature):
 
             melted_df = pd.melt(
                 intermediate_df,
-                id_vars=['user_id', 'cohort'],
+                id_vars=['user_id'],
                 var_name='data_point',
                 value_name=feature
             ).dropna()
-
-            # For convenience let's drop the cohort column
-            del melted_df["cohort"]
 
             settings = MinimalFCParameters()
             extracted_features = extract_features(

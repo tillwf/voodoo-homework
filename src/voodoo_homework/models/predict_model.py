@@ -1,29 +1,20 @@
 import click
 import fastparquet
-import functools as ft
-import json
 import logging
 import os
 import pandas as pd
-import tensorflow as tf
 
 from tensorflow.keras.models import load_model
 
-from voodoo_homework.features import USER_FEATURES
-from voodoo_homework.features import TIME_SERIES_FEATURES
-
 from voodoo_homework.config import load_config
-from voodoo_homework.utils import load_data
-from voodoo_homework.utils import load_datasets
-from voodoo_homework.utils import load_features
-
 from voodoo_homework.features.base_features import BaseFeatures
 from voodoo_homework.features.extra_features import ExtraFeatures
 from voodoo_homework.features.time_series_features import TimeSeriesFeatures
-
 from voodoo_homework.models.losses import mean_squared_error_log
 from voodoo_homework.models.losses import weighted_mape_tf
 from voodoo_homework.models.utils import dataframe_to_dict
+from voodoo_homework.utils import load_datasets
+from voodoo_homework.utils import load_features
 
 
 CONF = load_config()
@@ -107,12 +98,12 @@ def make_predictions(testset_path, models_root, output_root, features, evaluate=
 
     cols = set(
         [c for c in cols if not c.startswith("__")] +
-        ["user_id", "cohort"]
+        ["user_id"]
     )
 
     # Construct the train and validation set with the features
-    numeric_cols = data[cols].select_dtypes(include=['number']).columns.difference(["user_id", "cohort"]).tolist()
-    categorical_cols = data[cols].select_dtypes(exclude=['number']).columns.difference(["user_id", "cohort"]).tolist()
+    numeric_cols = data[cols].select_dtypes(include=['number']).columns.difference(["user_id"]).tolist()
+    categorical_cols = data[cols].select_dtypes(exclude=['number']).columns.difference(["user_id"]).tolist()
 
     # Merge the "user based" features
     X_test = pd.merge(

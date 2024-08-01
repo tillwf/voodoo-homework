@@ -1,5 +1,4 @@
 import click
-import json
 import logging
 import os
 import pandas as pd
@@ -131,7 +130,7 @@ def make_dataset(
     )]
 
     # Saving the data to parquet
-    trainset[["user_id", "cohort", "d120_rev"]].to_parquet(train_path, index=False)
+    trainset[["user_id", "d120_rev"]].to_parquet(train_path, index=False)
 
     # VALIDATION SET
     logging.info("\tValidation set")
@@ -145,7 +144,7 @@ def make_dataset(
     )]
 
     # Saving the data to parquet
-    evaluation_set[["user_id", "cohort", "d120_rev"]].to_parquet(eval_path, index=False)
+    evaluation_set[["user_id", "d120_rev"]].to_parquet(eval_path, index=False)
 
     # TESTSET
     logging.info("\tTestset")
@@ -158,7 +157,7 @@ def make_dataset(
     )]
 
     # Saving the data to parquet
-    testset[["user_id", "cohort", "d120_rev"]].to_parquet(test_path, index=False)
+    testset[["user_id", "d120_rev"]].to_parquet(test_path, index=False)
     
     # Sanity Check
     train_users = pd.read_parquet(train_path)

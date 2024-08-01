@@ -1,30 +1,24 @@
 import click
 import fastparquet
-import json
 import logging
-import numpy as np
 import os
 import pandas as pd
 import tensorflow as tf
 
-from tensorflow import keras
-from tensorflow.keras import layers
-from tensorflow.keras.layers import Input, Dense, Concatenate, Embedding, Flatten, BatchNormalization, Lambda
+from tensorflow.keras.layers import Input, Dense, Concatenate, Lambda
 from tensorflow.keras.layers import Normalization
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers.experimental.preprocessing import Normalization, StringLookup, CategoryEncoding
+from tensorflow.keras.layers.experimental.preprocessing import StringLookup, CategoryEncoding
 
 from voodoo_homework.config import load_config
-from voodoo_homework.utils import load_datasets
-from voodoo_homework.utils import load_features
-
 from voodoo_homework.features.base_features import BaseFeatures
 from voodoo_homework.features.extra_features import ExtraFeatures
 from voodoo_homework.features.time_series_features import TimeSeriesFeatures
-
 from voodoo_homework.models.losses import mean_squared_error_log
 from voodoo_homework.models.losses import weighted_mape_tf
 from voodoo_homework.models.utils import dataframe_to_dict
+from voodoo_homework.utils import load_datasets
+from voodoo_homework.utils import load_features
 
 
 CONF = load_config()
@@ -88,9 +82,9 @@ def train():
     )
 )
 def train_model(models_root, output_root, logs_root, features):
-
     logging.info("Training Model")
     X_train, X_validation, _ = load_datasets()
+    X_train = X_train.sample(frac=0.1)
     y_train = X_train.pop("d120_rev").astype(int)
     y_validation = X_validation.pop("d120_rev").astype(int)
 
@@ -111,12 +105,12 @@ def train_model(models_root, output_root, logs_root, features):
 
     cols = set(
         [c for c in cols if not c.startswith("__")] +
-        ["user_id", "cohort"]
+        ["user_id"]
     )
 
     # Construct the train and validation set with the features
-    numeric_cols = data[cols].select_dtypes(include=['number']).columns.difference(["user_id", "cohort", "game_type"]).tolist()
-    categorical_cols = data[cols].select_dtypes(exclude=['number']).columns.difference(["user_id", "cohort", "game_type"]).tolist()
+    numeric_cols = data[cols].select_dtypes(include=['number']).columns.difference(["user_id"]).tolist()
+    categorical_cols = data[cols].select_dtypes(exclude=['number']).columns.difference(["user_id"]).tolist()
 
     X_train = pd.merge(
         X_train,
@@ -132,8 +126,8 @@ def train_model(models_root, output_root, logs_root, features):
     )
 
     # Extract column names
-    numeric_cols = data.select_dtypes(include=['number']).columns.difference(["user_id", "cohort"]).tolist()
-    categorical_cols = data.select_dtypes(exclude=['number']).columns.difference(["user_id", "cohort"]).tolist()
+    numeric_cols = data.select_dtypes(include=['number']).columns.difference(["user_id"]).tolist()
+    categorical_cols = data.select_dtypes(exclude=['number']).columns.difference(["user_id"]).tolist()
 
     # Create input layers for numerical and categorical columns
     inputs = []
@@ -151,8 +145,6 @@ def train_model(models_root, output_root, logs_root, features):
     for col in categorical_cols:
         logging.info(col)
         categorical_input = Input(shape=(1,), name=col, dtype=tf.string)
-
-        # Create and adapt the StringLookup layer
         lookup_layer = StringLookup(output_mode='int', vocabulary=X_train[col].unique())
         encoded_indices = lookup_layer(categorical_input)
 
@@ -177,7 +169,7 @@ def train_model(models_root, output_root, logs_root, features):
 
     # Compile the model
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
         loss=mean_squared_error_log
     )
 
@@ -217,15 +209,15 @@ def train_model(models_root, output_root, logs_root, features):
     callbacks.append(early_stopping)
 
     # Prepare data for training (convert X_train to dictionary)
-    X_train_dict = dataframe_to_dict(X_train)
-    X_validation_dict = dataframe_to_dict(X_validation)
+    X_train_dict = dataframe_to_dict(X_train, numeric_cols, categorical_cols)
+    X_validation_dict = dataframe_to_dict(X_validation, numeric_cols, categorical_cols)
 
     # Launch the train and save the loss evolution in `history`
     history = model.fit(
         X_train_dict,
         y_train.values,
         callbacks=callbacks,
-        epochs=2,
+        epochs=EPOCH,
         validation_data=(
             X_validation_dict,
             y_validation.values

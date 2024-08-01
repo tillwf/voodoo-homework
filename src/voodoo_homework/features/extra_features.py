@@ -1,13 +1,11 @@
 import logging
 import os
-import pandas as pd
 
 from voodoo_homework.config import load_config
 from voodoo_homework.features.feature import Feature
 
 IDS = [
     "user_id",
-    "cohort",
 ]
 
 CONF = load_config()

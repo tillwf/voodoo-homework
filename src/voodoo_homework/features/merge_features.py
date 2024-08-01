@@ -1,6 +1,4 @@
 import click
-import functools as ft
-import json
 import logging
 import os
 import pandas as pd
@@ -67,6 +65,6 @@ def merge_features(data_path, output_root):
                     on=key,
                     how="left")
     
-    path = os.path.join(OUTPUT_ROOT, f"features.parquet")
+    path = os.path.join(OUTPUT_ROOT, "features.parquet")
     logging.info(f"Saving features to {path}")
     df.to_parquet(path, index=False)

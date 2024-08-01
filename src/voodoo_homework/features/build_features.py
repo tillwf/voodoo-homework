@@ -1,18 +1,14 @@
 import click
-import functools as ft
-import json
 import logging
-import os
 import pandas as pd
 
 from voodoo_homework.config import load_config
-from voodoo_homework.utils import load_data
 from voodoo_homework.features.base_features import BaseFeatures
 from voodoo_homework.features.extra_features import ExtraFeatures
 from voodoo_homework.features.time_series_features import TimeSeriesFeatures
 
 CONF = load_config()
-DATA_PATH = CONF["path"]["output_data_root"]
+DATA_PATH = CONF["path"]["input_data_path"]
 OUTPUT_ROOT = CONF["path"]["output_data_root"]
 
 FEATURE_DICT = {

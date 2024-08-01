@@ -13,7 +13,7 @@ def mean_squared_error_log(y_true, y_pred):
 
 
 def weighted_mape_tf(y_true, y_pred):
-    tot =tf.cast(tf.reduce_sum(y_true), tf.float32)
+    tot = tf.cast(tf.reduce_sum(y_true), tf.float32)
     tot = tf.clip_by_value(tot, clip_value_min=1, clip_value_max=10)
     wmape = tf.realdiv(
         tf.reduce_sum(

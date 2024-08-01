@@ -18,8 +18,8 @@ dataset:
 historical_data_points: "0"
 
 features:
-  "base_features": ["user_id", "cohort"]
-  "extra_features": ["user_id", "cohort"]
+  "base_features": ["user_id"]
+  "extra_features": ["user_id"]
   "time_series_features": ["user_id"]
 
 feature_definitions:
@@ -43,7 +43,7 @@ feature_definitions:
     - "rv_shown_count"
 
 model:
-  name: "Linear"
+  name: "NN"
   version: 1
   epoch: 50
   early_stopping_patience: 10
