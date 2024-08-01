@@ -134,3 +134,4 @@ def make_predictions(testset_path, models_root, output_root, features, evaluate=
     # Saving the predictions
     logging.info("Saving predictions")
     X_test.to_parquet(os.path.join(OUTPUT_ROOT, "raw_predictions.parquet"))
+    X_test.to_csv(os.path.join(OUTPUT_ROOT, "raw_predictions.csv"))

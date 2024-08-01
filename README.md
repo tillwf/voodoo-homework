@@ -178,6 +178,12 @@ The neural network is implemented using Tensorflow to be able to visualize easil
 make train
 ```
 
+To check the training live, launch Tensorboard:
+
+```
+tensorboard --logdir logs
+```
+
 ### Make predictions
 
 Save the predictions and print the performance
