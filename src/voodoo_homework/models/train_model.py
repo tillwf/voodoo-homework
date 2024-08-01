@@ -159,9 +159,10 @@ def train_model(models_root, output_root, logs_root, features):
     all_features = Concatenate()(encoded_features)
 
     # Define the rest of the model
-    x = Dense(128, activation='relu')(all_features)
-    x = Dense(64, activation='relu')(x)
-    output = Dense(1)(x)
+    x = Dense(64, activation='relu')(all_features)
+    x = Dense(32, activation='relu')(x)
+    x = Dense(16, activation='relu')(x)
+    output = Dense(1, activation='linear')(x)
     clipped_output = Lambda(lambda y_pred: tf.clip_by_value(y_pred, EPSILON, 1e10))(output)
 
     # Create the model
@@ -169,7 +170,7 @@ def train_model(models_root, output_root, logs_root, features):
 
     # Compile the model
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.000001),
         loss=mean_squared_error_log
     )
 
