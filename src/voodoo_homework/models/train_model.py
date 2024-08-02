@@ -84,9 +84,9 @@ def train():
 def train_model(models_root, output_root, logs_root, features):
     logging.info("Training Model")
     X_train, X_validation, _ = load_datasets()
-    X_train = X_train.sample(frac=0.1)
-    y_train = X_train.pop("d120_rev").astype(int)
-    y_validation = X_validation.pop("d120_rev").astype(int)
+
+    y_train = X_train.pop("d120_rev").astype(float)
+    y_validation = X_validation.pop("d120_rev").astype(float)
 
     # Load all the features
     data = load_features()
@@ -170,7 +170,7 @@ def train_model(models_root, output_root, logs_root, features):
 
     # Compile the model
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.000001),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
         loss=mean_squared_error_log
     )
 
